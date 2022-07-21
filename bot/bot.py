@@ -1,35 +1,59 @@
+from ast import Str
 import os
+from telegram import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton
+
 from telegram.ext import(
     Updater,
     CommandHandler,
     CallbackContext,
+    CallbackQueryHandler,
     PollAnswerHandler,
 )
+
 from telegram.constants import PARSEMODE_HTML
 from telegram import ParseMode
 
 from dotenv import load_dotenv
 load_dotenv(".env")
 keyApi = os.environ.get("KEY_API")
+PORT = os.environ.get("PORT")
+HOST = os.environ.get("HOST")
+DATABASE = os.environ.get("DATABASE")
+COLLECTIONS = os.environ.get("COLLECTIONS")
 
-enquetes = ["Gosta de pizza?","Gosta de sorvete?"]
+from pymongo import MongoClient
+client = MongoClient("mongodb://{}:{}".format(HOST,PORT))
 
-numeros = [""]
+db = client[DATABASE] 
+connectionDB = db[COLLECTIONS]
+
+connectionDB.insert_many([{"enquete":"Gosta de pizza?"},{"enquete":"Gosta de sorvete?"}])
+
 
 def start(update:Updater,context:CallbackContext):
-    print(update)
-    userID = update.message.chat.id
-    if update.effective_chat.username not in numeros:
-        context.bot.send_message(
-            chat_id=userID,
-            text="Usuario não pode votar",
-        )
+    result = connectionDB.find()
+    listPoll = []
+    for element in result:
+        listPoll.append(element)
+
+    listButton = []
+    for obj in listPoll:
+        listButton.append([InlineKeyboardButton(obj["enquete"], callback_data=str(obj["_id"]))])
+    # print(listPoll)
 
     userID = update.message.chat.id
     context.bot.send_message(
         chat_id=userID,
-        text=enquetes,
+        text="Enquetes disponíveis: ",
+        reply_markup = InlineKeyboardMarkup(listButton)
     )
+
+def enqueteVoto(update: Updater, context:CallbackContext):
+    query = update.callback_query
+    query.answer()
+    enqueteEscolhida = query.data
+    query.edit_message_text(text=f"Enquete: {enqueteEscolhida}")
+
 
 def poll(update: Updater, context:CallbackContext):
     answers = "Gosta de pizza?"
@@ -93,6 +117,7 @@ updater = Updater(token=keyApi)
 dispatcher = updater.dispatcher
 
 dispatcher.add_handler(CommandHandler("start",start))
+dispatcher.add_handler(CallbackQueryHandler(enqueteVoto))
 dispatcher.add_handler(CommandHandler("enq",poll))
 dispatcher.add_handler(PollAnswerHandler(receive_poll_answer))
 
