@@ -1,4 +1,3 @@
-from ast import Str
 import os
 from telegram import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton
 
