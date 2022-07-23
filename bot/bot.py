@@ -9,35 +9,34 @@ from telegram.ext import(
     PollAnswerHandler,
 )
 
-from telegram.constants import PARSEMODE_HTML
-from telegram import ParseMode
 
 from dotenv import load_dotenv
 load_dotenv(".env")
-keyApi = os.environ.get("KEY_API")
-PORT = os.environ.get("PORT")
+KEY_API = os.environ.get("KEY_API")
+PORT = int(os.environ.get("PORT"))
 HOST = os.environ.get("HOST")
 DATABASE = os.environ.get("DATABASE")
 COLLECTIONS = os.environ.get("COLLECTIONS")
 
 from pymongo import MongoClient
-client = MongoClient("mongodb://{}:{}".format(HOST,PORT))
+from bson.objectid import ObjectId
 
+client = MongoClient(HOST, PORT)
 db = client[DATABASE] 
-connectionDB = db[COLLECTIONS]
+connectionCollectionDB = db[COLLECTIONS]
 
-connectionDB.insert_many([{"enquete":"Gosta de pizza?"},{"enquete":"Gosta de sorvete?"}])
-
+# connectionCollectionDB.insert_many([{"enquete":"Gosta de pizza?"},{"enquete":"Gosta de sorvete?"}])
 
 def start(update:Updater,context:CallbackContext):
-    result = connectionDB.find()
+    result = connectionCollectionDB.find()
+
     listPoll = []
     for element in result:
         listPoll.append(element)
 
     listButton = []
     for obj in listPoll:
-        listButton.append([InlineKeyboardButton(obj["enquete"], callback_data=str(obj["_id"]))])
+        listButton.append([InlineKeyboardButton(obj["title"], callback_data=str(obj["_id"]))])
     # print(listPoll)
 
     userID = update.message.chat.id
@@ -50,8 +49,10 @@ def start(update:Updater,context:CallbackContext):
 def enqueteVoto(update: Updater, context:CallbackContext):
     query = update.callback_query
     query.answer()
-    enqueteEscolhida = query.data
-    query.edit_message_text(text=f"Enquete: {enqueteEscolhida}")
+    result = connectionCollectionDB.find_one({'_id': ObjectId(query.data)})
+    # enqueteEscolhida = query.data
+    # query.edit_message_text(text=f"Enquete: {enqueteEscolhida}")
+    query.edit_message_text(text=f"Enquete: {result['title']}")
 
 
 def poll(update: Updater, context:CallbackContext):
@@ -101,18 +102,12 @@ def receive_poll_answer(update: Updater, context:CallbackContext):
     # print("String:",answer_string)
     # print(answered_poll["chat_id"])
 
-    # context.bot.send_message(
-    #     answered_poll["chat_id"],
-    #     f"{update.effective_user.mention_html()} respondeu {answer_string}!",
-    #     parse_mode=ParseMode.HTML,
-    # )
-
     answered_poll["answers"] += 1
     # Close poll after three participants voted
-    if answered_poll["answers"] == 3:
+    if answered_poll["answers"] == 2:
         context.bot.stop_poll(answered_poll["chat_id"], answered_poll["message_id"])
 
-updater = Updater(token=keyApi)
+updater = Updater(token=KEY_API)
 dispatcher = updater.dispatcher
 
 dispatcher.add_handler(CommandHandler("start",start))
